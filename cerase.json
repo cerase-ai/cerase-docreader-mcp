@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "namespace": "studio.guidance",
+  "name": "cerase-docreader",
+  "type": "connector",
+  "display_name": "Cerase Docreader",
+  "description": "Read and extract the content of documents the user shares.",
+  "license": "MIT",
+  "install": {
+    "image": "ghcr.io/cerase-ai/cerase-docreader-mcp:latest"
+  },
+  "auth": {
+    "kind": "none",
+    "credential_scope": "tenant"
+  }
+}
