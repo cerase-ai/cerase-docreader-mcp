@@ -155,7 +155,7 @@ def _converter():
     return _md
 
 
-def _load_workspace_bytes(agent_id: str | None, path: str) -> bytes:
+def _load_workspace_bytes(agent_id: str | None, path: str, binding: str = "") -> bytes:
     """M-UPLOAD-2 — read an uploaded workspace file's CONTENT.
 
     This is a SHARED runner that mounts no agent work volume, so a `path`
@@ -182,9 +182,14 @@ def _load_workspace_bytes(agent_id: str | None, path: str) -> bytes:
     from urllib.parse import urlencode
 
     qs = urlencode({"path": path})
+    # M-SEC-TOKEN-BINDING-1: the control-plane broker requires the calling
+    # agent's binding (gateway-injected tool arg) besides the shared bearer.
+    headers = {"Authorization": f"Bearer {secret}"}
+    if binding:
+        headers["X-Cerase-Agent-Binding"] = binding
     req = urllib.request.Request(
         f"{cp}/api/internal/workspace-file/{agent_id}?{qs}",
-        headers={"Authorization": f"Bearer {secret}"},
+        headers=headers,
     )
     with urllib.request.urlopen(req, timeout=30) as r:  # noqa: S310 — internal API
         return r.read()
@@ -207,6 +212,7 @@ def read_document(
     file_url: str | None = None,
     file_base64: str | None = None,
     filename: str | None = None,
+    agent_binding: str = "",
 ) -> dict[str, Any]:
     """Extract text/markdown from a document.
 
@@ -225,6 +231,8 @@ def read_document(
         file_base64: a base64 / data-URL payload of the document.
         filename: original filename — gives the extension hint the
             converter uses (recommended when passing base64).
+        agent_binding: injected by the platform (M-SEC-TOKEN-BINDING-1
+            second factor for the workspace-file broker) — do not set it.
 
     Returns:
         dict with `text` (extracted markdown) and `format` (the
@@ -237,7 +245,7 @@ def read_document(
     suffix = _suffix_for(file_url, filename or path)
 
     if path:
-        raw = _load_workspace_bytes(agent_id, path)
+        raw = _load_workspace_bytes(agent_id, path, agent_binding)
     elif file_url:
         # M-SEC-SAFEFETCH-1: only public http(s) targets — never file://
         # (LFI) nor loopback/private/metadata addresses (SSRF). Local
