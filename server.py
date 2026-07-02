@@ -18,7 +18,9 @@ No agent_id needed — there is no upstream LLM call to attribute.
 from __future__ import annotations
 
 import base64
+import ipaddress
 import os
+import socket
 import tempfile
 import urllib.request
 from typing import Any
@@ -41,6 +43,104 @@ def _safe_local_path(path: str) -> str:
     if resolved != root and not resolved.startswith(root + os.sep):
         raise ValueError("path escapes the workspace root")
     return resolved
+
+
+# M-SEC-SAFEFETCH-1 — cap on remote document downloads (bytes).
+_MAX_FETCH_BYTES = int(os.environ.get("CERASE_FETCH_MAX_BYTES", 50 * 1024 * 1024))
+
+
+def _validate_fetch_url(url: str) -> str:
+    """M-SEC-SAFEFETCH-1 — SSRF/LFI guard for a caller-supplied fetch URL.
+
+    Only http(s) URLs whose host resolves to a public address may be
+    fetched server-side: file:// / ftp:// / any other scheme is refused,
+    as is any host that is — or resolves to — a loopback, link-local,
+    private (RFC1918), reserved or otherwise non-public address (kills
+    the cloud-metadata classic 169.254.169.254 and pivots into the
+    compose-internal network). `CERASE_FETCH_ALLOWED_HOSTS` (comma-
+    separated, exact hostnames, case-insensitive) optionally pins the
+    reachable hosts. Fail-closed: unparseable or unresolvable → raise.
+    Mirrors the PHP contract in control-plane `App\\Support\\SafeHttp`.
+    """
+    try:
+        parsed = urlparse(url)
+        host = (parsed.hostname or "").strip().lower()
+        port = parsed.port
+    except ValueError as exc:
+        raise ValueError(f"unparseable URL — refusing to fetch: {exc}") from exc
+    if parsed.scheme not in ("http", "https"):
+        raise ValueError(
+            f"URL scheme {parsed.scheme!r} refused — only http/https may be fetched"
+        )
+    if not host:
+        raise ValueError("URL has no host — refusing to fetch")
+
+    allowlist = {
+        h.strip().lower()
+        for h in os.environ.get("CERASE_FETCH_ALLOWED_HOSTS", "").split(",")
+        if h.strip()
+    }
+    if allowlist and host not in allowlist:
+        raise ValueError(f"host {host!r} is not on the fetch allowlist")
+
+    # Name-based fast fail — resolver-independent.
+    if host == "localhost" or host.endswith(".localhost"):
+        raise ValueError("refusing to fetch localhost")
+
+    try:
+        infos = socket.getaddrinfo(
+            host, port or (443 if parsed.scheme == "https" else 80),
+            proto=socket.IPPROTO_TCP,
+        )
+    except (socket.gaierror, OSError) as exc:
+        raise ValueError(
+            f"could not resolve host {host!r} — refusing to fetch (fail-closed)"
+        ) from exc
+    if not infos:
+        raise ValueError(
+            f"could not resolve host {host!r} — refusing to fetch (fail-closed)"
+        )
+    for info in infos:
+        addr = ipaddress.ip_address(info[4][0].split("%")[0])
+        if (
+            str(addr) == "169.254.169.254"  # cloud metadata — named explicitly
+            or addr.is_loopback
+            or addr.is_link_local
+            or addr.is_private
+            or addr.is_reserved
+            or addr.is_multicast
+            or addr.is_unspecified
+            or not addr.is_global  # CGNAT, TEST-NETs, anything else non-public
+        ):
+            raise ValueError(
+                f"host {host!r} points at a private/reserved address ({addr}) — "
+                "server-side fetch refused"
+            )
+    return url
+
+
+class _SafeRedirectHandler(urllib.request.HTTPRedirectHandler):
+    """Re-validate every redirect hop — a safe host 302'ing to file:// or
+    http://169.254.169.254 must be refused mid-flight."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):  # noqa: D102
+        _validate_fetch_url(newurl)
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+
+def _safe_fetch(url: str, timeout: int = 60) -> bytes:
+    """Fetch a caller-supplied URL defensively (M-SEC-SAFEFETCH-1):
+    validate scheme + resolved host first, re-validate redirect hops,
+    bound the read size and the connect time."""
+    _validate_fetch_url(url)
+    opener = urllib.request.build_opener(_SafeRedirectHandler())
+    with opener.open(url, timeout=timeout) as r:  # noqa: S310 — validated above
+        raw = r.read(_MAX_FETCH_BYTES + 1)
+    if len(raw) > _MAX_FETCH_BYTES:
+        raise ValueError(
+            f"fetched document exceeds the {_MAX_FETCH_BYTES}-byte limit"
+        )
+    return raw
 
 
 def _converter():
@@ -120,7 +220,8 @@ def read_document(
         path: workspace file path (the form the attachment-receiver
             skill uses — the bridge drops uploads into the agent's
             workspace). Use this OR file_url OR file_base64.
-        file_url: http(s) URL of the document.
+        file_url: http(s) URL of the document — public remote hosts
+            only (local files must use `path`, not a file:// URL).
         file_base64: a base64 / data-URL payload of the document.
         filename: original filename — gives the extension hint the
             converter uses (recommended when passing base64).
@@ -138,8 +239,10 @@ def read_document(
     if path:
         raw = _load_workspace_bytes(agent_id, path)
     elif file_url:
-        with urllib.request.urlopen(file_url) as r:  # noqa: S310 — gateway-supplied
-            raw = r.read()
+        # M-SEC-SAFEFETCH-1: only public http(s) targets — never file://
+        # (LFI) nor loopback/private/metadata addresses (SSRF). Local
+        # files go through the broker-scoped `path` form instead.
+        raw = _safe_fetch(file_url)
     else:
         payload = file_base64 or ""
         if "," in payload and payload.strip().startswith("data:"):
