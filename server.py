@@ -206,6 +206,39 @@ def _load_workspace_bytes(agent_id: str | None, path: str, binding: str = "") ->
         return r.read()
 
 
+# The extensions this tool will hand to the converter, measured rather than
+# declared: each one was converted under `--network none` from a fixture the
+# test generates, and each produced extracted text.
+#
+# An ALLOWLIST and not a denylist, because the converter routes by extension and
+# grows converters on its own. `read_document` used to pass anything through,
+# which is how a connector declared `auth.kind: none` and preinstalled on every
+# assistant came to send the caller's bytes to a third party: markitdown's audio
+# converter calls Google's speech API, so a customer's recording left the
+# appliance the moment somebody asked their assistant to read it. Proven under
+# `--network none`: it dies on the DNS lookup.
+#
+# ODT and RTF are deliberately absent and were advertised for months. Measured:
+# ODT raises `UnsupportedFormatException`, and RTF comes back byte-identical to
+# the file that went in — the markup, not the text in it. Making them work is an
+# engine swap, not this.
+SUPPORTED_SUFFIXES: frozenset[str] = frozenset(
+    {".pdf", ".docx", ".xlsx", ".pptx", ".html", ".htm", ".md", ".epub", ".csv", ".txt", ".json", ".xml"}
+)
+
+# Extensions worth naming their own destination. Anything else outside the
+# allowlist gets the generic refusal; these get told where the capability is,
+# because the assistant is about to tell a person "I cannot", and "I cannot,
+# ask me this way instead" is a different sentence.
+_REDIRECTED_SUFFIXES: dict[str, str] = {
+    ".mp3": "audio", ".wav": "audio", ".m4a": "audio", ".ogg": "audio",
+    ".opus": "audio", ".flac": "audio", ".aac": "audio", ".wma": "audio",
+    ".mp4": "audio", ".mov": "audio", ".webm": "audio", ".mkv": "audio",
+    ".png": "image", ".jpg": "image", ".jpeg": "image", ".gif": "image",
+    ".webp": "image", ".bmp": "image", ".tiff": "image",
+}
+
+
 def _suffix_for(file_url: str | None, filename: str | None) -> str:
     if filename and "." in filename:
         return "." + filename.rsplit(".", 1)[1].lower()
@@ -229,7 +262,8 @@ def read_document(
 
     Use when the user uploads or links a PDF / Office / web document and
     wants its contents read or summarised. Supported: PDF, DOCX, XLSX,
-    PPTX, HTML, MD, RTF, ODT, EPUB, CSV.
+    PPTX, HTML, MD, EPUB, CSV, TXT, JSON, XML. Audio, video and images
+    are refused here and belong to cerase-media.
 
     Args:
         agent_id: Cerase Agent PK — bound by the gateway; required only for
@@ -254,6 +288,28 @@ def read_document(
         raise ValueError("supply exactly one of path / file_url / file_base64")
 
     suffix = _suffix_for(file_url, filename or path)
+
+    # Refused BEFORE the bytes are written to disk and handed over, because the
+    # converter decides what to do with them by this same extension and one of
+    # its decisions is a request to a third party.
+    if suffix not in SUPPORTED_SUFFIXES:
+        kind = _REDIRECTED_SUFFIXES.get(suffix)
+        if kind == "audio":
+            raise ValueError(
+                f"this tool does not read audio or video ({suffix or 'no extension'}). "
+                "Transcription belongs to cerase-media, which owns it and keeps the "
+                "recording on this appliance."
+            )
+        if kind == "image":
+            raise ValueError(
+                f"this tool does not read images ({suffix}). Ask cerase-media to "
+                "describe or transcribe the picture instead."
+            )
+        raise ValueError(
+            f"unsupported document type '{suffix or 'no extension'}'. This tool reads: "
+            + ", ".join(sorted(x.lstrip('.') for x in SUPPORTED_SUFFIXES))
+            + "."
+        )
 
     if path:
         raw = _load_workspace_bytes(agent_id, path, agent_binding)

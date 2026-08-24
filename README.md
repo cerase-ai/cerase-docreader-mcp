@@ -12,8 +12,19 @@ version-pinning even though it makes **no LLM call** — it is therefore
 Exactly one of `file_url` / `file_base64`. Pass `filename` (or use a
 URL with an extension) so the converter picks the right reader.
 
-Supported: PDF, DOCX, XLSX, PPTX, HTML, MD, RTF, ODT, EPUB, CSV (via
-markitdown).
+Supported: PDF, DOCX, XLSX, PPTX, HTML, MD, EPUB, CSV, TXT, JSON, XML
+(via markitdown). Anything else is refused on its extension, before the
+bytes are written to disk.
+
+RTF and ODT were listed here and never worked: ODT raises
+`UnsupportedFormatException` and RTF comes back byte-identical to the
+file that went in — the markup, not the text in it.
+
+**Audio, video and images are refused, and that is a boundary rather
+than a gap.** markitdown routes audio to a converter that calls Google's
+speech API, so a file handed here would have left the machine. Ask
+`cerase-media` instead; it owns transcription and keeps the recording
+where it is.
 
 ## Billing
 
