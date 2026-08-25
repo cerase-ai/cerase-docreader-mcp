@@ -56,12 +56,12 @@ def _safe_local_path(path: str) -> str:
     return resolved
 
 
-# M-SEC-SAFEFETCH-1 — cap on remote document downloads (bytes).
+# Cap on remote document downloads, in bytes.
 _MAX_FETCH_BYTES = int(os.environ.get("CERASE_FETCH_MAX_BYTES", 50 * 1024 * 1024))
 
 
 def _validate_fetch_url(url: str) -> str:
-    """M-SEC-SAFEFETCH-1 — SSRF/LFI guard for a caller-supplied fetch URL.
+    """SSRF/LFI guard for a caller-supplied fetch URL.
 
     Only http(s) URLs whose host resolves to a public address may be
     fetched server-side: file:// / ftp:// / any other scheme is refused,
@@ -140,9 +140,9 @@ class _SafeRedirectHandler(urllib.request.HTTPRedirectHandler):
 
 
 def _safe_fetch(url: str, timeout: int = 60) -> bytes:
-    """Fetch a caller-supplied URL defensively (M-SEC-SAFEFETCH-1):
-    validate scheme + resolved host first, re-validate redirect hops,
-    bound the read size and the connect time."""
+    """Fetch a caller-supplied URL defensively: validate scheme + resolved
+    host first, re-validate redirect hops, bound the read size and the
+    connect time."""
     _validate_fetch_url(url)
     opener = urllib.request.build_opener(_SafeRedirectHandler())
     with opener.open(url, timeout=timeout) as r:  # noqa: S310 — validated above
@@ -167,7 +167,7 @@ def _converter():
 
 
 def _load_workspace_bytes(agent_id: str | None, path: str, binding: str = "") -> bytes:
-    """M-UPLOAD-2 — read an uploaded workspace file's CONTENT.
+    """Read an uploaded workspace file's CONTENT.
 
     This is a SHARED runner that mounts no agent work volume, so a `path`
     cannot be `open()`-ed locally in production. Try a local mount first
@@ -193,8 +193,8 @@ def _load_workspace_bytes(agent_id: str | None, path: str, binding: str = "") ->
     from urllib.parse import urlencode
 
     qs = urlencode({"path": path})
-    # M-SEC-TOKEN-BINDING-1: the control-plane broker requires the calling
-    # agent's binding (gateway-injected tool arg) besides the shared bearer.
+    # The control-plane broker requires the calling agent's binding
+    # (gateway-injected tool arg) besides the shared bearer.
     headers = {"Authorization": f"Bearer {secret}"}
     if binding:
         headers["X-Cerase-Agent-Binding"] = binding
@@ -276,8 +276,8 @@ def read_document(
         file_base64: a base64 / data-URL payload of the document.
         filename: original filename — gives the extension hint the
             converter uses (recommended when passing base64).
-        agent_binding: injected by the platform (M-SEC-TOKEN-BINDING-1
-            second factor for the workspace-file broker) — do not set it.
+        agent_binding: injected by the platform (second factor for the
+            workspace-file broker) — do not set it.
 
     Returns:
         dict with `text` (extracted markdown) and `format` (the
@@ -314,9 +314,9 @@ def read_document(
     if path:
         raw = _load_workspace_bytes(agent_id, path, agent_binding)
     elif file_url:
-        # M-SEC-SAFEFETCH-1: only public http(s) targets — never file://
-        # (LFI) nor loopback/private/metadata addresses (SSRF). Local
-        # files go through the broker-scoped `path` form instead.
+        # Only public http(s) targets — never file:// (LFI) nor
+        # loopback/private/metadata addresses (SSRF). Local files go
+        # through the broker-scoped `path` form instead.
         raw = _safe_fetch(file_url)
     else:
         payload = file_base64 or ""
