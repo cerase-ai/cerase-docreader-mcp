@@ -2,7 +2,7 @@
 # TOOLS-2: first-party rebuild (was external kiso-docreader), owned for
 # standardization + version-pinning. Makes NO LLM call → unbilled.
 #
-# Exposes 1 tool: read_document. FastMCP stdio bridged by mcp-proxy —
+# Exposes 1 tool: read_document. MCPServer stdio bridged by mcp-proxy —
 # same shape as the other cerase-* MCP images.
 FROM python:3.13.9-slim@sha256:326df678c20c78d465db501563f3492d17c42a4afe33a1f2bf5406a1d56b0e86
 
