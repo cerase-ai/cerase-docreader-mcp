@@ -28,7 +28,7 @@ import urllib.request
 from typing import Any
 from urllib.parse import urlparse
 
-from mcp.server.mcpserver import MCPServer
+from mcp.server.fastmcp import FastMCP
 
 # MCP stdio transport uses stdout as the JSON-RPC channel — any log on stdout
 # corrupts the protocol. Own the stderr invariant explicitly (don't depend on
@@ -39,7 +39,7 @@ from mcp.server.mcpserver import MCPServer
 logging.basicConfig(stream=sys.stderr, level=logging.WARNING)
 logging.getLogger("httpx").setLevel(logging.WARNING)
 
-mcp = MCPServer("cerase-docreader")
+mcp = FastMCP("cerase-docreader")
 
 _md = None
 
