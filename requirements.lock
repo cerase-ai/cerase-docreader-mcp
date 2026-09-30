@@ -156,7 +156,7 @@ pydantic-settings==2.15.0
     # via mcp
 pydub==0.25.1
     # via markitdown
-pyjwt==2.13.0
+pyjwt==2.15.1
     # via
     #   mcp
     #   msal
