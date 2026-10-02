@@ -260,28 +260,18 @@ def read_document(
 ) -> dict[str, Any]:
     """Extract text/markdown from a document.
 
-    Use when the user uploads or links a PDF / Office / web document and
-    wants its contents read or summarised. Supported: PDF, DOCX, XLSX,
-    PPTX, HTML, MD, EPUB, CSV, TXT, JSON, XML. Audio, video and images
-    are refused here and belong to cerase-media.
+    Use when the user uploads or links a PDF / Office / web document and wants its contents read or summarised. Supported: PDF, DOCX, XLSX, PPTX, HTML, MD, EPUB, CSV, TXT, JSON, XML. Audio, video and images are refused here and belong to cerase-media.
 
     Args:
-        agent_id: Cerase Agent PK — bound by the gateway; required only for
-            the `path` form (used to fetch the workspace file's content).
-        path: workspace file path (the form the attachment-receiver
-            skill uses — the bridge drops uploads into the agent's
-            workspace). Use this OR file_url OR file_base64.
-        file_url: http(s) URL of the document — public remote hosts
-            only (local files must use `path`, not a file:// URL).
+        agent_id: Cerase Agent PK — bound by the gateway; required only for the `path` form (used to fetch the workspace file's content).
+        path: workspace file path (the form the attachment-receiver skill uses — the bridge drops uploads into the agent's workspace). Use this OR file_url OR file_base64.
+        file_url: http(s) URL of the document — public remote hosts only (local files must use `path`, not a file:// URL).
         file_base64: a base64 / data-URL payload of the document.
-        filename: original filename — gives the extension hint the
-            converter uses (recommended when passing base64).
-        agent_binding: injected by the platform (second factor for the
-            workspace-file broker) — do not set it.
+        filename: original filename — gives the extension hint the converter uses (recommended when passing base64).
+        agent_binding: injected by the platform (second factor for the workspace-file broker) — do not set it.
 
     Returns:
-        dict with `text` (extracted markdown) and `format` (the
-        extension that was used).
+        dict with `text` (extracted markdown) and `format` (the extension that was used).
     """
     sources = [s for s in (path, file_url, file_base64) if s]
     if len(sources) != 1:
