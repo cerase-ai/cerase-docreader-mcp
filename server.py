@@ -56,8 +56,11 @@ def _safe_local_path(path: str) -> str:
     return resolved
 
 
-# Cap on remote document downloads, in bytes.
-_MAX_FETCH_BYTES = int(os.environ.get("CERASE_FETCH_MAX_BYTES", 50 * 1024 * 1024))
+# Cap on remote document downloads, in bytes: the ceiling the console's file
+# limit is held to (WorkspaceAttachments::CEILING_MB in the control-plane), so a
+# document the console allows is never refused here. Held there by
+# tests/unit/one_file_size_limit.bats.
+_MAX_FETCH_BYTES = int(os.environ.get("CERASE_FETCH_MAX_BYTES", 64 * 1024 * 1024))
 
 
 def _validate_fetch_url(url: str) -> str:
