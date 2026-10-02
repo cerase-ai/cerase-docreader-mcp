@@ -14,7 +14,6 @@ markitdown, which the runner's own environment has and the host's may not.
 """
 from __future__ import annotations
 
-import importlib.util
 import io
 import os
 import sys
@@ -54,8 +53,6 @@ if "mcp.server.fastmcp" not in sys.modules:
 import server  # noqa: E402
 
 CANARY = "CANARY-DRIVE"
-
-_HAS_CONVERTER = importlib.util.find_spec("markitdown") is not None
 
 _ENV = {
     "CERASE_CONTROL_PLANE_URL": "http://cerase-control-plane:8000",
@@ -185,26 +182,3 @@ class TheDownloadPathReachesTheBroker(_Elsewhere):
                 extension = os.path.splitext(path)[1]
                 self.assertEqual(handed, [(extension, raw)])
                 self.assertEqual(out, {"text": "extracted", "format": extension[1:]})
-
-
-@unittest.skipUnless(_HAS_CONVERTER, "markitdown is in the runner's environment, not this one")
-class AnOfficeFileFromDriveReads(_Elsewhere):
-    def test_powerpoint_word_and_pdf_read_through_their_workspace_path(self):
-        files = {
-            "downloads/abc_metodologia.pptx": _pptx(),
-            "downloads/contratto.docx": _docx(),
-            "downloads/offerta.pdf": _pdf(),
-        }
-        broker = _Broker(files)
-        with mock.patch.dict(os.environ, _ENV), mock.patch(
-            "urllib.request.urlopen", side_effect=broker.urlopen
-        ):
-            for path in files:
-                with self.subTest(path=path):
-                    out = server.read_document(agent_id="7", path=path, agent_binding="b7")
-                    self.assertIn(CANARY, out["text"])
-                    self.assertEqual(out["format"], path.rsplit(".", 1)[1])
-
-
-if __name__ == "__main__":
-    unittest.main()

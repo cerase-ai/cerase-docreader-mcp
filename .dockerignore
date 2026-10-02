@@ -17,3 +17,7 @@ test_*.py
 *_test.py
 conftest.py
 README.md
+# The two files the image build's `check` stage runs; they reach that stage
+# only, never the image (see the Dockerfile).
+!test_drive_download.py
+!image_check_drive_download.py
