@@ -4,7 +4,7 @@
 #
 # Exposes 1 tool: read_document. FastMCP stdio bridged by mcp-proxy —
 # same shape as the other cerase-* MCP images.
-FROM python:3.13.9-slim@sha256:326df678c20c78d465db501563f3492d17c42a4afe33a1f2bf5406a1d56b0e86 AS base
+FROM python:3.13.9-slim@sha256:326df678c20c78d465db501563f3492d17c42a4afe33a1f2bf5406a1d56b0e86 AS runtime
 
 # Some markitdown converters shell out to system tooling for legacy
 # formats; ffmpeg/ca-certs keep the common paths working.
@@ -30,6 +30,13 @@ COPY server.py /app/server.py
 # from what it recorded at its own startup, so the connect went on passing for a
 # container with no server left in it. The script's header carries the detail.
 COPY scripts/healthcheck.py /app/healthcheck.py
+# A PPTX, DOCX or PDF saved from Drive is converted by markitdown, which only
+# this image has: the conversion is proven here, and a build where it breaks
+# stops before the image ships. The two check files are bind-mounted for this
+# one command, so they reach no layer of the image.
+RUN --mount=type=bind,source=test_drive_download.py,target=/tmp/check/test_drive_download.py \
+    --mount=type=bind,source=image_check_drive_download.py,target=/tmp/check/image_check_drive_download.py \
+    cd /tmp/check && PYTHONPATH=/app PYTHONDONTWRITEBYTECODE=1 python -m unittest -v image_check_drive_download
 
 RUN groupadd -r appuser \
  && useradd -r -g appuser -u 1000 -m -d /home/appuser -s /usr/sbin/nologin appuser \
@@ -49,18 +56,3 @@ HEALTHCHECK --interval=5m --start-interval=5s --timeout=10s --start-period=60s -
     CMD python3 /app/healthcheck.py || exit 1
 
 ENTRYPOINT ["sh", "-c", "exec mcp-proxy --port 3000 --host 0.0.0.0 --pass-environment -- python /app/server.py"]
-
-# A PPTX, DOCX or PDF saved from Drive is converted by markitdown, which only
-# this image has, so the conversion is proven in a stage built FROM it. The
-# image below depends on that stage through an empty marker, which makes the
-# build run it, and a conversion that breaks stops the image; the check's files
-# stay in the stage and never reach the image.
-FROM base AS check
-USER root
-COPY test_drive_download.py image_check_drive_download.py /tmp/check/
-RUN cp /app/server.py /tmp/check/ \
- && cd /tmp/check && python -m unittest -v image_check_drive_download \
- && touch /tmp/drive-conversion-checked
-
-FROM base AS runtime
-COPY --from=check /tmp/drive-conversion-checked /tmp/drive-conversion-checked
