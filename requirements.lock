@@ -31,7 +31,7 @@ beautifulsoup4==4.15.0
     # via
     #   markdownify
     #   markitdown
-certifi==2026.5.20
+certifi==2026.10.19
     # via
     #   httpcore
     #   httpx
@@ -143,7 +143,7 @@ pdfminer-six==20251230
     #   pdfplumber
 pdfplumber==0.11.9
     # via markitdown
-pillow==12.3.0
+pillow==13.0.0
     # via
     #   pdfplumber
     #   python-pptx
