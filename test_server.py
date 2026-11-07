@@ -230,5 +230,49 @@ class ReadDocumentSinkTest(unittest.TestCase):
         self.assertEqual(out["format"], "pdf")
 
 
+class WorkspaceBrokerTest(unittest.TestCase):
+    """The `path` form reaches the control-plane with the binding, never a
+    shared bearer."""
+
+    _ENV = {
+        "CERASE_CONTROL_PLANE_URL": "http://cerase-control-plane:8000",
+        "CERASE_TOOL_WORKSPACE_ROOT": "/nonexistent-workspace-root",
+    }
+
+    def _response(self, body: bytes = b"%PDF-1.7 hello"):
+        resp = mock.MagicMock()
+        resp.read.return_value = body
+        resp.__enter__ = mock.Mock(return_value=resp)
+        resp.__exit__ = mock.Mock(return_value=False)
+        return resp
+
+    def test_sends_binding_and_no_authorization_header(self):
+        resp = self._response()
+        with mock.patch.dict(os.environ, self._ENV), mock.patch(
+            "urllib.request.urlopen", return_value=resp
+        ) as urlopen:
+            server._load_workspace_bytes("7", "downloads/missing.pdf", "b7")
+        (req,), _ = urlopen.call_args
+        self.assertIsNone(req.get_header("Authorization"))
+        self.assertEqual(req.get_header("X-cerase-agent-binding"), "b7")
+
+    def test_works_with_internal_secret_unset(self):
+        resp = self._response()
+        with mock.patch.dict(os.environ, self._ENV, clear=True), mock.patch(
+            "urllib.request.urlopen", return_value=resp
+        ) as urlopen:
+            raw = server._load_workspace_bytes("7", "downloads/missing.pdf", "b7")
+        self.assertEqual(raw, b"%PDF-1.7 hello")
+        urlopen.assert_called_once()
+
+    def test_without_binding_refused_before_network(self):
+        with mock.patch.dict(os.environ, self._ENV), mock.patch(
+            "urllib.request.urlopen"
+        ) as urlopen:
+            with self.assertRaises(ValueError):
+                server._load_workspace_bytes("7", "downloads/missing.pdf", "")
+        urlopen.assert_not_called()
+
+
 if __name__ == "__main__":
     unittest.main()

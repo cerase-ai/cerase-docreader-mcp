@@ -187,20 +187,17 @@ def _load_workspace_bytes(agent_id: str | None, path: str, binding: str = "") ->
         pass  # not a safe local path → let the control-plane re-guard + serve
 
     cp = os.environ.get("CERASE_CONTROL_PLANE_URL", "").rstrip("/")
-    secret = os.environ.get("CERASE_INTERNAL_SECRET", "")
-    if not agent_id or not cp or not secret:
+    if not agent_id or not cp or not binding:
         raise ValueError(
             "workspace `path` given but no local file and no control-plane "
-            "configured (agent_id / CERASE_CONTROL_PLANE_URL / CERASE_INTERNAL_SECRET)"
+            "configured (agent_id / CERASE_CONTROL_PLANE_URL / agent_binding)"
         )
     from urllib.parse import urlencode
 
     qs = urlencode({"path": path})
     # The control-plane broker requires the calling agent's binding
-    # (gateway-injected tool arg) besides the shared bearer.
-    headers = {"Authorization": f"Bearer {secret}"}
-    if binding:
-        headers["X-Cerase-Agent-Binding"] = binding
+    # (gateway-injected tool arg).
+    headers = {"X-Cerase-Agent-Binding": binding}
     req = urllib.request.Request(
         f"{cp}/api/internal/workspace-file/{agent_id}?{qs}",
         headers=headers,

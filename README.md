@@ -24,9 +24,8 @@ The three sources:
   directly when it exists under `CERASE_TOOL_WORKSPACE_ROOT`; otherwise it
   fetches it from the Cerase control-plane at
   `GET /api/internal/workspace-file/<agent_id>?path=…`, presenting
-  `CERASE_INTERNAL_SECRET` as a bearer and `agent_binding` as
-  `X-Cerase-Agent-Binding`. Inside Cerase the gateway fills `agent_id` and
-  `agent_binding`; the model never sets them.
+  `agent_binding` as `X-Cerase-Agent-Binding`. Inside Cerase the gateway fills
+  `agent_id` and `agent_binding`; the model never sets them.
 - `file_url` is fetched only over `http` or `https`, and only from a host that
   resolves to a public address: loopback, private, link-local, reserved and
   cloud-metadata addresses are refused, and every redirect is checked again.
@@ -39,7 +38,6 @@ The three sources:
 |---|---|---|
 | `CERASE_TOOL_WORKSPACE_ROOT` | `/workspace` | Directory a `path` is read from locally; a path resolving outside it is never opened. |
 | `CERASE_CONTROL_PLANE_URL` | none | Control-plane base URL for the `path` form when the file is not local. |
-| `CERASE_INTERNAL_SECRET` | none | Bearer token for that control-plane request. |
 | `CERASE_FETCH_MAX_BYTES` | `67108864` (64 MiB) | Largest document `file_url` may download. |
 | `CERASE_FETCH_ALLOWED_HOSTS` | empty | Comma-separated hostnames; when set, `file_url` may reach only these. |
 

@@ -56,7 +56,6 @@ CANARY = "CANARY-DRIVE"
 
 _ENV = {
     "CERASE_CONTROL_PLANE_URL": "http://cerase-control-plane:8000",
-    "CERASE_INTERNAL_SECRET": "the-bearer",
 }
 
 
@@ -177,7 +176,7 @@ class TheDownloadPathReachesTheBroker(_Elsewhere):
                 url = urlparse(req.full_url)
                 self.assertEqual(url.path, "/api/internal/workspace-file/7")
                 self.assertEqual(parse_qs(url.query)["path"], [path])
-                self.assertEqual(req.get_header("Authorization"), "Bearer the-bearer")
+                self.assertIsNone(req.get_header("Authorization"))
                 self.assertEqual(req.get_header("X-cerase-agent-binding"), "b7")
                 extension = os.path.splitext(path)[1]
                 self.assertEqual(handed, [(extension, raw)])
