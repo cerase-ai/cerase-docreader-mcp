@@ -199,7 +199,7 @@ six==1.17.0
     # via
     #   markdownify
     #   python-dateutil
-soupsieve==2.8.4
+soupsieve==4.1
     # via beautifulsoup4
 speechrecognition==3.16.1
     # via markitdown
